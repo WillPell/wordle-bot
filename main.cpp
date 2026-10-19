@@ -20,26 +20,23 @@ bool is_valid_word(const std::string& word){
     return true;
 }
 
+std::string generate_feedback(const std::string& guess, const std::string& answer){
+    std::string output(5, 'b'); // init grey
 
-
-int main(){
-    std::ifstream input("word.txt");
-    std::string word;
-    std::vector<std::string> words; 
-
-    if(!input){
-        std::cerr << "Error in input file";
-        return 1;
-    }
-
-    while(std::getline(input, word)){
-        if(is_valid_word(word)){
-            words.push_back(word);
+    for(std::size_t i = 0; i < 5; i++){ // range being hardcoded is fine bc is_valid_func will ensure 5 letter word
+        if(guess[i] == answer[i]){
+            output[i] = 'g';
         }
     }
 
+    return output;
+}
 
-    std::cout << words.size() << '\n';
+
+int main(){
+
+    std::cout << generate_feedback("crane", "crave") << '\n';
+
 
     return 0;
 }
