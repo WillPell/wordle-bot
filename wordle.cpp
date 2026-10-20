@@ -5,7 +5,6 @@ bool is_valid_word(const std::string& word){
 
     for(char letter : word){
         if(letter < 'a' || letter > 'z'){
-            std::cout << "Invalid characters\n";
             return false;
         }
     }
