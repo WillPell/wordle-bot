@@ -22,6 +22,21 @@ bool is_valid_word(const std::string& word){
     return true;
 }
 
+bool is_valid_feedback(const std::string& feedback){
+    for(char letter : feedback){
+        if(letter != 'g' && letter != 'y' && letter != 'b'){
+            return false;
+        }
+    }
+
+    if(feedback.size() != 5){
+        return false;
+    }
+
+    return true;
+}
+
+
 std::string generate_feedback(const std::string& guess, const std::string& answer){
     std::string output(5, 'b'); // init grey
     std::array<int, 26> remaining{}; 
@@ -67,13 +82,50 @@ std::vector<std::string> filter_candidates(const std::vector<std::string>& candi
 
 
 int main(){
+    // variable decleration
+    std::string guess, feedback;
+    std::vector<std::string> candidates{"crane", "brain", "crave", "slave", "crate", "creed", "cruel"};
+    std::vector<std::string> result;
+    
+    // gathering inputs
+    std::cout << "Enter word: "; 
+    if(!std::getline(std::cin, guess)){
+        return 0;
+    }
 
-    std::vector<std::string> candidates{"crane", "crave", "crate", "slate"};
-    auto result = filter_candidates(candidates, "crane", "gggbg");
-    std::vector<std::string> expected{"crave", "crate"};
+    
+    std::cout << "Enter feedback: "; 
+    if(!std::getline(std::cin, feedback)){
+        return 0;
+    }
 
-    assert(result == expected);
 
+    if(!is_valid_word(guess)){
+        std::cerr << "Non-valid word";
+        return 1;
+    }
+
+    if(!is_valid_feedback(feedback)){
+        std::cerr << "Non-valid feedback";
+        return 1;
+    }
+
+
+    // begin filtering
+    result = filter_candidates(candidates, guess, feedback);
+
+    if(result.empty()){
+        std::cout << "No match in database";
+    }
+
+    std::cout << "Remaining candidates: ";
+    std::cout << result.size();
+    std::cout << "\n";
+
+    for(const std::string& word : result){
+        std::cout << word;
+        std::cout << "\n";
+    }
 
     return 0;
 }
