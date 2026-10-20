@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <array>
+#include <cassert> // testing
 
 
 bool is_valid_word(const std::string& word){
@@ -48,10 +49,30 @@ std::string generate_feedback(const std::string& guess, const std::string& answe
     return output;
 }
 
+std::vector<std::string> filter_candidates(const std::vector<std::string>& candidates, const std::string& guess, const std::string& observed){
+    std::vector<std::string> result;
+
+    for(const std::string& candidate : candidates){
+        std::string predicted = generate_feedback(guess, candidate);
+            if(predicted == observed){
+                result.push_back(candidate);
+            }
+    }
+    return result;
+
+}
+
+
+
+
 
 int main(){
 
-    std::cout << generate_feedback("creed", "crane") << '\n';
+    std::vector<std::string> candidates{"crane", "crave", "crate", "slate"};
+    auto result = filter_candidates(candidates, "crane", "gggbg");
+    std::vector<std::string> expected{"crave", "crate"};
+
+    assert(result == expected);
 
 
     return 0;
