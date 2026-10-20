@@ -1,5 +1,7 @@
 #include "wordle.h"
 #include <iostream>
+#include <fstream>
+
 
 bool is_valid_word(const std::string& word){
 
@@ -28,6 +30,25 @@ bool is_valid_feedback(const std::string& feedback){
     }
 
     return true;
+}
+
+
+bool load_words(const std::string& filename, std::vector<std::string>& words){
+    std::ifstream input(filename);
+    std::string word;
+
+    if(!input){
+        return false;
+    }
+
+    while(std::getline(input, word)){
+        if(is_valid_word(word)){
+            words.push_back(word);
+        }
+    }
+
+    return !input.bad();
+
 }
 
 

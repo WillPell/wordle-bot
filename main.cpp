@@ -17,18 +17,10 @@ int main(){
     std::string word;
     
 
-    // filling candidates
-    std::ifstream input("word.txt");
-
-    if(!input){
-        std::cerr << "File opening error\n";
+    // load answers
+    if (!load_words("data/nyt-answers.txt", candidates)) {
+        std::cerr << "Could not load data/nyt-answers.txt\n";
         return 1;
-    }
-
-    while(std::getline(input, word)){
-        if(is_valid_word(word)){
-            candidates.push_back(word);
-        }
     }
 
     if(candidates.empty()){
@@ -36,9 +28,15 @@ int main(){
         return 1;
     }
 
-    // copy vector, constant and non constant
-    const std::vector<std::string> allowed = candidates;
-    std::vector<std::string> available = allowed;
+    // copy vector
+    std::vector<std::string> available = candidates;
+
+    // load guesses
+    if (!load_words("data/nyt-guesses.txt", available)) {
+        std::cerr << "Could not load data/nyt-guess.txt\n";
+        return 1;
+    }
+
 
     // main loop
     while(true){

@@ -8,6 +8,8 @@ bool is_valid_word(const std::string& word);
 
 bool is_valid_feedback(const std::string& feedback);
 
+bool load_words(const std::string& filename, std::vector<std::string>& words);
+
 std::string generate_feedback(
     const std::string& guess,
     const std::string& answer);
