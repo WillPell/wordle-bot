@@ -81,7 +81,7 @@ The two word pools serve different purposes:
 
 ## Example result
 
-The assistant solved a live puzzle with answer **WREST** in four guesses. The automated single-game runner reproduces the same sequence with the bundled lists:
+The assistant solved a live puzzle with answer **WREST** in four guesses. An automated check reproduces the four-guess result with the bundled lists:
 
 | Turn | Guess | Feedback | Answers remaining |
 | :---: | --- | :---: | ---: |
@@ -90,16 +90,44 @@ The assistant solved a live puzzle with answer **WREST** in four guesses. The au
 | 3 | `erupt` | `ygbbg` | 1 |
 | 4 | `wrest` | `ggggg` | Solved |
 
-This is a worked example, not an aggregate performance result. Success rate and average guesses across the complete answer set have not yet been measured.
+This is one worked example. Aggregate results for the full answer set are below.
 
-## Run the single-game benchmark
+## Frequency benchmark
+
+The current strategy was evaluated against every answer in the bundled list, using a fresh candidate and guess pool for each game and a six-guess limit.
+
+| Metric | Result |
+| --- | ---: |
+| Answers tested | 2,315 |
+| Initial guess entries | 12,953 |
+| Solved within six guesses | 2,294 |
+| Failures | 21 |
+| Success rate | 99.093% |
+| Average guesses among successes | 3.862 |
+
+**Failures are excluded from the average.** Each failed game used all six guesses without solving. These results describe this fixed dataset and strategy, not a guarantee for live puzzles.
+
+| Guesses to solve | Games |
+| :---: | ---: |
+| 1 | 0 |
+| 2 | 83 |
+| 3 | 713 |
+| 4 | 1,026 |
+| 5 | 381 |
+| 6 | 91 |
+
+### Reproduce the benchmark
 
 ```powershell
-g++ -std=c++20 -Wall -Wextra -Wpedantic benchmark.cpp wordle.cpp -o benchmark.exe
+g++ -std=c++20 -O2 -Wall -Wextra -Wpedantic benchmark.cpp wordle.cpp -o benchmark.exe
 .\benchmark.exe
 ```
 
-The runner currently uses the fixed answer `wrest`, generates its own feedback, and stops after success or six guesses. It shares the assistant's solver functions. `benchmark.cpp` and `main.cpp` are separate entry points, so build them as separate executables.
+The runner loads the lists once, generates its own feedback, and writes [benchmark-results.csv](benchmark-results.csv) with one row per answer. Failed games have `solved=false` and a blank `guesses` field. Filter those rows to inspect all failed answers. Each run overwrites that CSV.
+
+It shares the assistant's solver functions, removes used guesses, and uses the same list-order tie-breaking and single-candidate shortcut. Assertions check immediate success, the known `wrest` result, and preservation of the true answer while filtering.
+
+`-O2` enables compiler optimisation. The runner also reports elapsed time for the game loop, including CSV writes but excluding loading and preliminary checks. Timing depends on the machine and build. `benchmark.cpp` and `main.cpp` are separate entry points, so build them as separate executables.
 
 ## Project structure
 
@@ -107,7 +135,8 @@ The runner currently uses the fixed answer `wrest`, generates its own feedback, 
 main.cpp             Interactive terminal assistant
 wordle.h             Shared function declarations
 wordle.cpp           Loading, validation, feedback, filtering, and scoring
-benchmark.cpp        Automated single-game runner
+benchmark.cpp        Full-answer-set frequency benchmark
+benchmark-results.csv Per-answer results from the latest benchmark run
 data/
   nyt-answers.txt     Initial possible-answer list
   nyt-guesses.txt     Additional guess-only words
@@ -133,11 +162,10 @@ These are fixed lists used for this project, not a guaranteed reflection of the 
 - Guess input is checked for format, but is not checked for membership in the allowed-guess list.
 - The interactive assistant trusts the user's feedback and has no independent access to the live answer. An empty result can indicate incorrect feedback or an answer missing from the dataset.
 - The interactive assistant has no six-guess cap; the automated runner does.
-- There is currently no persistent automated test suite. Development checks have covered validation, duplicate-letter feedback, filtering, frequency counts, scoring, and tie-breaking.
+- Benchmark assertions provide a few persistent checks; there is no separate regression test suite yet. Additional development checks have covered validation, duplicate-letter feedback, filtering, frequency counts, scoring, and tie-breaking.
 
 ## Next steps
 
-- Benchmark the frequency strategy across the complete answer set, reporting success rate, average guesses among successes, and failures separately.
 - Add an entropy strategy and compare both approaches on the same dataset.
 - Keep repeatable regression tests alongside the solver.
 

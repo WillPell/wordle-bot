@@ -147,4 +147,14 @@ std::string suggest(const std::vector<std::string>& allowed, const std::vector<s
 }
 
 
+std::map<std::string, int> count_feedback_patterns(const std::string& guess, const std::vector<std::string>& candidates){
+    std::map<std::string, int> counts;
+
+    for(std::size_t i = 0; i < candidates.size(); i++){
+        std::string pattern = generate_feedback(guess, candidates[i]);
+        counts[pattern]++;
+    }
+
+    return counts;
+}
 

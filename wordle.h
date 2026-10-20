@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <array>
+#include <map>
 
 bool is_valid_word(const std::string& word);
 
@@ -28,4 +29,8 @@ int score_guess(
 
 std::string suggest(
     const std::vector<std::string>& allowed,
+    const std::vector<std::string>& candidates);
+
+std::map<std::string, int> count_feedback_patterns(
+    const std::string& guess,
     const std::vector<std::string>& candidates);
