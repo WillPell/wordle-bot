@@ -87,45 +87,58 @@ int main(){
     std::vector<std::string> candidates{"crane", "brain", "crave", "slave", "crate", "creed", "cruel"};
     std::vector<std::string> result;
     
-    // gathering inputs
-    std::cout << "Enter word: "; 
-    if(!std::getline(std::cin, guess)){
-        return 0;
-    }
+    // main loop
+    while(true){
+        // gathering inputs
+        std::cout << "Enter word: "; 
+        if(!std::getline(std::cin, guess)){
+            return 0;
+        }
 
-    
-    std::cout << "Enter feedback: "; 
-    if(!std::getline(std::cin, feedback)){
-        return 0;
-    }
-
-
-    if(!is_valid_word(guess)){
-        std::cerr << "Non-valid word";
-        return 1;
-    }
-
-    if(!is_valid_feedback(feedback)){
-        std::cerr << "Non-valid feedback";
-        return 1;
-    }
+        
+        std::cout << "Enter feedback: "; 
+        if(!std::getline(std::cin, feedback)){
+            return 0;
+        }
 
 
-    // begin filtering
-    result = filter_candidates(candidates, guess, feedback);
+        if(!is_valid_word(guess)){
+            std::cerr << "Non-valid word\n";
+            continue;
+        }
 
-    if(result.empty()){
-        std::cout << "No match in database";
-    }
+        if(!is_valid_feedback(feedback)){
+            std::cerr << "Non-valid feedback\n";
+            continue;
+        }
 
-    std::cout << "Remaining candidates: ";
-    std::cout << result.size();
-    std::cout << "\n";
 
-    for(const std::string& word : result){
-        std::cout << word;
+        // begin filtering
+        result = filter_candidates(candidates, guess, feedback);
+
+        if(result.empty()){
+            std::cout << "Database exhausted, try again\n";
+            continue;
+        }
+        else if(feedback == "ggggg" && result[0] == guess){
+            std:: cout << "Solved";
+            return 0;
+        }
+        else{
+            candidates = result;
+        }
+
+        std::cout << "\n========== REMAINING ==========\n";
+        for(std::string& word : candidates){
+            std::cout << word;
+            std::cout << "\n";
+        }
+        
         std::cout << "\n";
+
+
     }
+  
 
     return 0;
 }
