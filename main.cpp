@@ -4,6 +4,7 @@
 #include <vector>
 #include <array>
 #include <cassert> // testing
+#include "wordle.h" // header file
 
 
 bool is_valid_word(const std::string& word){
