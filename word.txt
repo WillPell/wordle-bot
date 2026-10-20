@@ -1,5 +1,4 @@
-apple
 crane
+crate
+crave
 slate
-sheep
-speed
