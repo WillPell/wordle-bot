@@ -4,94 +4,106 @@
 #include <array>
 #include <cassert>
 #include <chrono>
+#include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iostream>
 
-// Returns the number of guesses on success, or 0 after six unsuccessful guesses.
+// Each strategy has its own cache. With fixed lists and deterministic choices,
+// the same feedback history implies the same candidates and available guesses.
+using SuggestionCache = std::map<std::vector<std::string>, std::string>;
+
+// Returns guesses on success, or 0 after six unsuccessful guesses.
 int play_game(const std::string& answer,
               const std::vector<std::string>& answers,
-              const std::vector<std::string>& allowed_guesses)
+              const std::vector<std::string>& allowed_guesses,
+              bool use_entropy,
+              SuggestionCache& cache)
 {
     std::vector<std::string> candidates = answers;
     std::vector<std::string> available = allowed_guesses;
+    std::vector<std::string> history;
 
     for (int turn = 1; turn <= 6; ++turn) {
         assert(!candidates.empty() && !available.empty());
 
-        const std::string guess = candidates.size() == 1
-            ? candidates.front() : suggest(available, candidates);
-        const std::string feedback = generate_feedback(guess, answer);
+        std::string guess;
+        if (candidates.size() == 1) {
+            guess = candidates.front();
+        } else {
+            auto cached = cache.find(history);
+            if (cached == cache.end()) {
+                guess = use_entropy ? suggest_entropy(available, candidates)
+                                    : suggest(available, candidates);
+                cache.emplace(history, guess);
+            } else {
+                guess = cached->second;
+            }
+        }
 
+        const std::string feedback = generate_feedback(guess, answer);
         if (feedback == "ggggg") {
             return turn;
         }
 
         candidates = filter_candidates(candidates, guess, feedback);
         std::erase(available, guess);
-        // The known answer must survive every round of generated feedback.
+        history.push_back(guess + feedback);
         assert(std::find(candidates.begin(), candidates.end(), answer) != candidates.end());
     }
 
     return 0;
 }
 
-int main()
+bool benchmark(const std::vector<std::string>& answers,
+               const std::vector<std::string>& allowed_guesses,
+               bool use_entropy)
 {
-    std::vector<std::string> answers;
-    if (!load_words("data/nyt-answers.txt", answers) || answers.empty()) {
-        std::cerr << "Could not load a nonempty answer list\n";
-        return 1;
-    }
-
-    std::vector<std::string> allowed_guesses = answers;
-    if (!load_words("data/nyt-guesses.txt", allowed_guesses)) {
-        std::cerr << "Could not load data/nyt-guesses.txt\n";
-        return 1;
-    }
-
-    // Check immediate success and the previously verified live-game example.
-    assert(play_game("apple", {"apple"}, {"apple"}) == 1);
-    assert(play_game("wrest", answers, allowed_guesses) == 4);
-
-    std::ofstream results("benchmark-results.csv");
+    const std::string strategy = use_entropy ? "entropy" : "frequency";
+    const std::string filename = "results/" + strategy + ".csv";
+    std::ofstream results(filename);
     if (!results) {
-        std::cerr << "Could not open benchmark-results.csv\n";
-        return 1;
+        std::cerr << "Could not open " << filename << '\n';
+        return false;
     }
     results << "answer,solved,guesses\n";
 
-    std::array<int, 7> distribution{}; // Index 0 counts failures; 1-6 count successes.
+    SuggestionCache cache;
+    std::array<int, 7> distribution{}; // 0: failures; 1-6: successful guess counts.
+    std::vector<std::string> failures;
     int total_successful_guesses = 0;
     const auto start = std::chrono::steady_clock::now();
+    std::cout << "Running " << strategy << "..." << std::endl;
 
     for (const std::string& answer : answers) {
-        const int guesses = play_game(answer, answers, allowed_guesses);
+        const int guesses = play_game(answer, answers, allowed_guesses, use_entropy, cache);
         ++distribution[guesses];
         total_successful_guesses += guesses;
+        if (guesses == 0) {
+            failures.push_back(answer);
+        }
         results << answer << ',' << (guesses != 0 ? "true" : "false") << ',';
         if (guesses != 0) {
             results << guesses;
         }
-        results << '\n'; // Failed games leave guesses blank rather than implying a solution.
+        results << '\n'; // A failure has no successful guess count.
     }
 
     const double seconds = std::chrono::duration<double>(
         std::chrono::steady_clock::now() - start).count();
     results.close();
     if (!results) {
-        std::cerr << "Could not finish writing benchmark-results.csv\n";
-        return 1;
+        std::cerr << "Could not finish writing " << filename << '\n';
+        return false;
     }
 
-    const int failures = distribution[0];
-    const auto successes = answers.size() - failures;
+    const auto successes = answers.size() - failures.size();
     std::cout << std::fixed << std::setprecision(3)
-              << "Strategy: letter frequency, six-guess limit\n"
+              << "Strategy: " << strategy << ", six-guess limit\n"
               << "Answers: " << answers.size() << '\n'
               << "Initial guess entries: " << allowed_guesses.size() << '\n'
               << "Solved: " << successes << '\n'
-              << "Failed: " << failures << '\n'
+              << "Failed: " << failures.size() << '\n'
               << "Success rate: " << 100.0 * successes / answers.size() << "%\n";
     if (successes != 0) {
         std::cout << "Average guesses (successful games only): "
@@ -103,6 +115,57 @@ int main()
     for (int turn = 1; turn <= 6; ++turn) {
         std::cout << "Solved in " << turn << ": " << distribution[turn] << '\n';
     }
-    std::cout << "Elapsed benchmark seconds: " << seconds << '\n'
-              << "Per-answer results: benchmark-results.csv\n";
+    std::cout << "Elapsed seconds (shared histories cached): " << seconds << '\n'
+              << "Distinct cached suggestions: " << cache.size() << '\n'
+              << "Per-answer results: " << filename << '\n'
+              << "Failed answers:";
+    for (const std::string& answer : failures) {
+        std::cout << ' ' << answer;
+    }
+    std::cout << "\n\n";
+    return true;
+}
+
+int main()
+{
+    std::vector<std::string> answers;
+    if (!load_words("data/nyt-answers.txt", answers) || answers.empty()) {
+        std::cerr << "Could not load a nonempty answer list\n";
+        return 1;
+    }
+    std::vector<std::string> allowed_guesses = answers;
+    if (!load_words("data/nyt-guesses.txt", allowed_guesses)) {
+        std::cerr << "Could not load data/nyt-guesses.txt\n";
+        return 1;
+    }
+
+    // Compare shared-cache and fresh-cache outcomes on a small answer set.
+    const std::vector<std::string> small_answers{"crane", "crave", "crate", "slate"};
+    for (bool use_entropy : {false, true}) {
+        SuggestionCache shared_cache;
+        for (const std::string& answer : small_answers) {
+            SuggestionCache fresh_cache;
+            const int fresh_result = play_game(answer, small_answers, small_answers,
+                                               use_entropy, fresh_cache);
+            const int shared_result = play_game(answer, small_answers, small_answers,
+                                                use_entropy, shared_cache);
+            assert(shared_result == fresh_result);
+            assert(shared_result > 0 && shared_result <= 6);
+        }
+        SuggestionCache singleton_cache;
+        assert(play_game("apple", {"apple"}, {"apple"}, use_entropy, singleton_cache) == 1);
+    }
+    SuggestionCache live_example_cache;
+    assert(play_game("wrest", answers, allowed_guesses, false, live_example_cache) == 4);
+
+    std::error_code directory_error;
+    std::filesystem::create_directories("results", directory_error);
+    if (directory_error) {
+        std::cerr << "Could not create results directory: " << directory_error.message() << '\n';
+        return 1;
+    }
+    if (!benchmark(answers, allowed_guesses, false)
+        || !benchmark(answers, allowed_guesses, true)) {
+        return 1;
+    }
 }

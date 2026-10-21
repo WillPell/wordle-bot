@@ -2,7 +2,7 @@
 
 **A terminal Wordle assistant written in C++20, built from scratch to learn modern C++.**
 
-Enter your guesses and Wordle's feedback to narrow the possible answers and get a frequency-based suggestion for your next move. The solver handles repeated letters, preserves previous constraints, and can suggest words outside the remaining answer set.
+Enter your guesses and Wordle's feedback to narrow the possible answers and get a frequency- or entropy-based suggestion for your next move. The solver handles repeated letters, preserves previous constraints, and can suggest words outside the remaining answer set.
 
 **C++20 · Standard library only · Terminal interface**
 
@@ -13,7 +13,7 @@ Requires a C++20-capable compiler. Developed with GCC 13.2.0 from MSYS2 on Windo
 From the repository root:
 
 ```powershell
-g++ -std=c++20 -Wall -Wextra -Wpedantic main.cpp wordle.cpp -o wordlebot.exe
+g++ -std=c++20 -O2 -Wall -Wextra -Wpedantic main.cpp wordle.cpp -o wordlebot.exe
 .\wordlebot.exe
 ```
 
@@ -21,7 +21,7 @@ Run from the repository root so the program can find the `data/` directory. Both
 
 ## Using the assistant
 
-1. Play the suggested word in Wordle, or choose your own guess.
+1. Select frequency (`f`) or entropy (`e`) at startup, then play the suggested word in Wordle or choose your own guess.
 2. Enter the word you actually played.
 3. Enter five feedback characters, from left to right:
 
@@ -33,12 +33,12 @@ Run from the repository root so the program can find the `data/` directory. Both
 
 ```text
 Remaining answers: 2315
-Frequency suggestion oater
+Frequency suggestion: oater
 Enter guess (5 lowercase letters): oater
 Enter feedback (g/y/b): bbyyy
 
 Remaining answers: 24
-Frequency suggestion trice
+Frequency suggestion: trice
 ```
 
 Guesses must contain exactly five lowercase English letters. Feedback must contain exactly five characters drawn from `g`, `y`, and `b`.
@@ -70,7 +70,11 @@ For every letter, count how many remaining answers contain it. Each answer contr
 score(guess) = sum of candidate frequencies for each distinct letter in guess
 ```
 
-The highest-scoring available word is suggested. Ties keep the first word in list order. Accepted guesses are removed from the suggestion pool; when only one candidate remains, that answer is suggested directly.
+The highest-scoring available word is suggested.
+
+Entropy instead generates feedback for a guess against every remaining answer, grouping answers by feedback pattern. Assuming equally likely answers, a group containing a fraction `p` of the candidates contributes `-p * log2(p)` to the score. Summing those contributions measures expected information gain in bits. The highest-entropy guess is selected.
+
+Both strategies keep the first word in list order when scores tie. Accepted guesses are removed from the suggestion pool; when only one candidate remains, that answer is suggested directly. Entropy measures information gained in the next turn; it does not directly optimise the total number of guesses to solve.
 
 The two word pools serve different purposes:
 
@@ -92,29 +96,22 @@ The assistant solved a live puzzle with answer **WREST** in four guesses. An aut
 
 This is one worked example. Aggregate results for the full answer set are below.
 
-## Frequency benchmark
+## Strategy comparison
 
-The current strategy was evaluated against every answer in the bundled list, using a fresh candidate and guess pool for each game and a six-guess limit.
+Both strategies were evaluated against every answer in the bundled list, using a fresh candidate and guess pool for each game and a six-guess limit. Each started with 2,315 answers and 12,953 guess entries.
 
-| Metric | Result |
-| --- | ---: |
-| Answers tested | 2,315 |
-| Initial guess entries | 12,953 |
-| Solved within six guesses | 2,294 |
-| Failures | 21 |
-| Success rate | 99.093% |
-| Average guesses among successes | 3.862 |
+| Metric | Frequency | Entropy |
+| --- | ---: | ---: |
+| Solved within six guesses | 2,294 | 2,315 |
+| Failures | 21 | 0 |
+| Success rate | 99.093% | 100.000% |
+| Average guesses among successes | 3.862 | 3.635 |
 
-**Failures are excluded from the average.** Each failed game used all six guesses without solving. These results describe this fixed dataset and strategy, not a guarantee for live puzzles.
+**Failures are excluded from each average.** Each failed game used all six guesses without solving. The averages therefore cover different successful subsets: 2,294 answers for frequency and all 2,315 for entropy. These results describe this fixed dataset and the current implementation, not a guarantee for live puzzles.
 
-| Guesses to solve | Games |
-| :---: | ---: |
-| 1 | 0 |
-| 2 | 83 |
-| 3 | 713 |
-| 4 | 1,026 |
-| 5 | 381 |
-| 6 | 91 |
+![Distribution of guesses: frequency and entropy compared across 2,315 answers, including failures.](docs/images/guess-distribution.png)
+
+![Cumulative success by turn: entropy reaches 100% within six guesses; frequency reaches 99.09%. All answers, including failures, remain in the denominator.](docs/images/cumulative-success.png)
 
 ### Reproduce the benchmark
 
@@ -123,11 +120,24 @@ g++ -std=c++20 -O2 -Wall -Wextra -Wpedantic benchmark.cpp wordle.cpp -o benchmar
 .\benchmark.exe
 ```
 
-The runner loads the lists once, generates its own feedback, and writes [benchmark-results.csv](benchmark-results.csv) with one row per answer. Failed games have `solved=false` and a blank `guesses` field. Filter those rows to inspect all failed answers. Each run overwrites that CSV.
+The runner loads the lists once, generates its own feedback, and writes [results/frequency.csv](results/frequency.csv) and [results/entropy.csv](results/entropy.csv), each with one row per answer. Failed games have `solved=false` and a blank `guesses` field. Failures are also listed in the terminal. Each run overwrites these two CSVs. The original [benchmark-results.csv](benchmark-results.csv) is retained as the earlier frequency baseline.
 
-It shares the assistant's solver functions, removes used guesses, and uses the same list-order tie-breaking and single-candidate shortcut. Assertions check immediate success, the known `wrest` result, and preservation of the true answer while filtering.
+It shares the assistant's solver functions, removes used guesses, and uses the same list-order tie-breaking and single-candidate shortcut. Assertions check immediate success, the known frequency result for `wrest`, preservation of the true answer while filtering, and agreement between shared and fresh caches on a small answer set.
 
-`-O2` enables compiler optimisation. The runner also reports elapsed time for the game loop, including CSV writes but excluding loading and preliminary checks. Timing depends on the machine and build. `benchmark.cpp` and `main.cpp` are separate entry points, so build them as separate executables.
+To avoid recalculating the same opening thousands of times, the benchmark caches suggestions by the complete guess/feedback history, with a separate cache for each strategy. For fixed lists and deterministic choices, the same history implies the same candidates and available guesses. The cache changes neither the selected guesses nor game outcomes; frequency results match the original uncached baseline row for row.
+
+`-O2` enables compiler optimisation. The runner reports elapsed time for each strategy, including game simulation, cache lookups, and CSV writes but excluding loading and preliminary checks. **These are cached benchmark runtimes, not independent-game or interactive suggestion latencies.** Timing depends on the machine and build. The interactive assistant does not use this benchmark cache. `benchmark.cpp` and `main.cpp` are separate entry points, so build them as separate executables.
+
+### Regenerate the figures
+
+The figures are generated directly from the two result CSVs using Python and Matplotlib. These tools are only needed to regenerate the images; the C++ solver has no external dependencies.
+
+```powershell
+python -m pip install matplotlib
+python scripts/plot_benchmarks.py
+```
+
+The script verifies that both CSVs contain the same ordered answer set and writes PNGs to `docs/images/`.
 
 ## Project structure
 
@@ -135,8 +145,14 @@ It shares the assistant's solver functions, removes used guesses, and uses the s
 main.cpp             Interactive terminal assistant
 wordle.h             Shared function declarations
 wordle.cpp           Loading, validation, feedback, filtering, and scoring
-benchmark.cpp        Full-answer-set frequency benchmark
-benchmark-results.csv Per-answer results from the latest benchmark run
+benchmark.cpp        Full-answer-set comparison of both strategies
+benchmark-results.csv Original frequency baseline
+results/
+  frequency.csv      Latest per-answer frequency results
+  entropy.csv        Latest per-answer entropy results
+scripts/
+  plot_benchmarks.py  Reproducible Matplotlib figures
+docs/images/         Generated README charts
 data/
   nyt-answers.txt     Initial possible-answer list
   nyt-guesses.txt     Additional guess-only words
@@ -158,6 +174,7 @@ These are fixed lists used for this project, not a guaranteed reflection of the 
 ## Current limitations
 
 - Letter frequency is a heuristic. It does not explicitly measure feedback partitions or expected information gain, and it does not guarantee a solution within six guesses.
+- Entropy assumes equally likely remaining answers and recomputes feedback partitions for each considered guess. It is more expensive than letter-frequency scoring; full-dataset success does not guarantee success on a different word list.
 - Suggestions can use obscure words from the allowed-guess list. Tie-breaking depends on file order.
 - Guess input is checked for format, but is not checked for membership in the allowed-guess list.
 - The interactive assistant trusts the user's feedback and has no independent access to the live answer. An empty result can indicate incorrect feedback or an answer missing from the dataset.
@@ -166,8 +183,8 @@ These are fixed lists used for this project, not a guaranteed reflection of the 
 
 ## Next steps
 
-- Add an entropy strategy and compare both approaches on the same dataset.
 - Keep repeatable regression tests alongside the solver.
+- Measure interactive suggestion latency before deciding whether solver optimisation is needed.
 
 ## Learning goals
 
