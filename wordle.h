@@ -34,3 +34,11 @@ std::string suggest(
 std::map<std::string, int> count_feedback_patterns(
     const std::string& guess,
     const std::vector<std::string>& candidates);
+
+double entropy_score(
+    const std::string& guess,
+    const std::vector<std::string>& candidates);
+
+std::string suggest_entropy(
+    const std::vector<std::string>& allowed,
+    const std::vector<std::string>& candidates);

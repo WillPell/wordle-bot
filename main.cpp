@@ -15,6 +15,7 @@ int main(){
     std::vector<std::string> candidates;
     std::vector<std::string> result;
     std::string word;
+    std::string choice;
     
 
     // load answers
@@ -37,18 +38,47 @@ int main(){
         return 1;
     }
 
+    // selection
+    while(1){
+        std::cout << "Select mode: frequency (f) or entropy (e): ";
+        if(!std::getline(std::cin, choice)){
+            std::cout << "\nError in choice input\n";
+            return 1;
+        }
+
+        if(choice != "f" && choice != "e"){
+            std::cout << "\nInvalid selection, try again\n";
+        }
+        else{
+            break; 
+        }
+    }
+
 
     // main loop
     while(true){
         std::cout << "\nRemaining answers: " << candidates.size() << '\n';
-        std::cout << "Frequency suggestion "; // no \n so it continues on
+        if(choice == "f"){
+            std::cout << "Frequency suggestion: "; // no \n so it continues on
+        }
+        else if(choice == "e"){
+            std::cout << "Entropy suggestion: ";
+        }
+
 
         // suggestions
         if(candidates.size() == 1){
             std::cout << candidates[0];
         }
-        else{
+        else if(choice == "f"){
             std::cout << suggest(available, candidates);
+        }
+        else if(choice == "e"){
+            std::cout << suggest_entropy(available, candidates);
+        }
+        else{
+            std::cout << "Error in suggestion choice";
+            return 1;
         }
         std::cout << '\n';
 

@@ -1,6 +1,7 @@
 #include "wordle.h"
 #include <iostream>
 #include <fstream>
+#include <cmath>
 
 
 bool is_valid_word(const std::string& word){
@@ -158,3 +159,32 @@ std::map<std::string, int> count_feedback_patterns(const std::string& guess, con
     return counts;
 }
 
+double entropy_score(const std::string& guess, const std::vector<std::string>& candidates){
+    std::map<std::string, int> counts = count_feedback_patterns(guess, candidates);
+
+    double entropy = 0.0;
+
+    for(const auto& [pattern, count] : counts){
+        double p = static_cast<double>(count)/candidates.size();
+        entropy -= p*std::log2(p);
+    }
+
+    return entropy;
+}
+
+
+std::string suggest_entropy(const std::vector<std::string>& allowed, const std::vector<std::string>& candidates){
+    std::string best_guess = allowed.front();
+    double best_guess_entropy_score = entropy_score(best_guess, candidates); // initial
+
+    for(const std::string& guess : allowed){
+        double current_guess_entropy = entropy_score(guess, candidates);
+        
+        if(current_guess_entropy > best_guess_entropy_score){
+            best_guess = guess;
+            best_guess_entropy_score = current_guess_entropy;
+        }
+    }
+
+    return best_guess;
+}
